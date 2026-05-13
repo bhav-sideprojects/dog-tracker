@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { clearData, loadData, saveData } from '@/store/app-store';
 import { AppData, CareLog, CareType, DogProfile } from '@/store/types';
+import { cancelAllActivityNotifications, scheduleAllNotifications } from '@/constants/notifications';
 
 // ── date helpers ──────────────────────────────────────────────────────────────
 
@@ -20,8 +21,16 @@ function daysBetween(a: Date, b: Date): number {
 // ── computed helpers (pure functions, no closures over refs) ──────────────────
 
 export type WeeklyScore  = { done: number; target: number };
+export type DailyScore   = { done: number; target: number };
 export type PeriodicScore = { daysSinceLast: number | null; frequencyDays: number; lastDate: string | null };
 export type DayActivity  = { date: Date; hasLog: boolean };
+
+export function dailyScore(logs: CareLog[], type: CareType, target: number): DailyScore {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const done = logs.filter(l => l.type === type && new Date(l.date) >= today).length;
+  return { done: Math.min(done, target), target };
+}
 
 export function weeklyScore(logs: CareLog[], type: CareType, target: number): WeeklyScore {
   const monday = getMonday(new Date());
@@ -80,6 +89,12 @@ function computeFillPercent(data: AppData): number {
     const s = periodicScore(logs, 'grooming', freq);
     scores.push(s.daysSinceLast === null ? 0 : Math.max(0, 1 - s.daysSinceLast / freq));
   }
+  if (dog.trackedActivities.includes('feeding')) {
+    const target = dog.feedingTimesPerDay || 2;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const done = logs.filter(l => l.type === 'feeding' && new Date(l.date) >= today).length;
+    scores.push(Math.min(1, done / target));
+  }
 
   return scores.reduce((sum, s) => sum + s, 0) / scores.length;
 }
@@ -93,6 +108,7 @@ type AppDataContextValue = {
   fillPercent: number;
   weeklyScores:  { walking: WeeklyScore; teeth: WeeklyScore; training: WeeklyScore };
   periodicScores: { worming: PeriodicScore; vet: PeriodicScore; grooming: PeriodicScore };
+  dailyScores:   { feeding: DailyScore };
   setDog:    (profile: DogProfile) => Promise<void>;
   updateDog: (profile: DogProfile) => Promise<void>;
   resetApp:  () => Promise<void>;
@@ -128,6 +144,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     if (profile.groomingLastDate && profile.trackedActivities.includes('grooming'))
       initialLogs.push({ id: 'init-grooming', type: 'grooming', date: profile.groomingLastDate });
     await persist({ dog: profile, logs: initialLogs });
+    scheduleAllNotifications(profile, initialLogs).catch(() => {});
   }, [persist]);
 
   const updateDog = useCallback(async (profile: DogProfile) => {
@@ -141,9 +158,11 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     if (profile.groomingLastDate && profile.trackedActivities.includes('grooming'))
       logs = [...logs, { id: 'init-grooming', type: 'grooming' as CareType, date: profile.groomingLastDate }];
     await persist({ dog: profile, logs });
+    scheduleAllNotifications(profile, logs).catch(() => {});
   }, [persist]);
 
   const resetApp = useCallback(async () => {
+    await cancelAllActivityNotifications();
     await clearData();
     setData({ dog: null, logs: [] });
   }, []);
@@ -152,6 +171,10 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     const log: CareLog = { id: Date.now().toString(), type, date: new Date().toISOString() };
     const next = { ...dataRef.current, logs: [...dataRef.current.logs, log] };
     await persist(next);
+    // Reschedule periodic notifications so due-date triggers update
+    if ((type === 'worming' || type === 'vet' || type === 'grooming') && next.dog) {
+      scheduleAllNotifications(next.dog, next.logs).catch(() => {});
+    }
   }, [persist]);
 
   // Pre-compute scores inline so they're always fresh after setData
@@ -164,6 +187,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const worming  = periodicScore(logs, 'worming',  dog?.wormingFrequencyDays  ?? 90);
   const vet      = periodicScore(logs, 'vet',      dog?.vetFrequencyDays      ?? 365);
   const grooming = periodicScore(logs, 'grooming', dog?.groomingFrequencyDays ?? 42);
+  const feeding  = dailyScore(logs, 'feeding', dog?.feedingTimesPerDay ?? 2);
 
   return (
     <AppDataContext.Provider value={{
@@ -171,6 +195,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       fillPercent: computeFillPercent(data),
       weeklyScores:   { walking, teeth, training },
       periodicScores: { worming, vet, grooming },
+      dailyScores:    { feeding },
       setDog, updateDog, resetApp, logCare,
     }}>
       {children}

@@ -17,12 +17,13 @@ import { BREED_ORDER, BREEDS } from '@/constants/breeds';
 import { DogMascot } from '@/components/dog-mascot';
 import { Sparkle } from '@/components/sparkle';
 import { useAppData } from '@/hooks/use-app-data';
-import { BreedId, CareType } from '@/store/types';
+import { ActivityNotification, BreedId, CareType, FeedingTime } from '@/store/types';
 
 type Step = 'name' | 'breed' | 'activities' | 'setup';
 const STEPS: Step[] = ['name', 'breed', 'activities', 'setup'];
 
-const ESSENTIALS: { type: CareType; emoji: string; label: string }[] = [
+const ESSENTIALS: { type: CareType; emoji: string; label: string; hint?: string }[] = [
+  { type: 'feeding', emoji: '🍖', label: 'Feeding',        hint: '2× per day' },
   { type: 'walking', emoji: '🐾', label: 'Walkies' },
   { type: 'teeth',   emoji: '🦷', label: 'Teeth Brushing' },
   { type: 'worming', emoji: '💊', label: 'Worming Tablet' },
@@ -33,6 +34,16 @@ const SUGGESTED: { type: CareType; emoji: string; label: string; hint: string }[
   { type: 'grooming', emoji: '✂️', label: 'Grooming',        hint: 'Every 6 weeks' },
   { type: 'training', emoji: '🎓', label: 'Training',        hint: '3× per week' },
 ];
+
+function defaultFeedingTimes(perDay: number): FeedingTime[] {
+  if (perDay === 1) return [{ hour: 8, minute: 0 }];
+  if (perDay === 3) return [{ hour: 8, minute: 0 }, { hour: 13, minute: 0 }, { hour: 18, minute: 0 }];
+  return [{ hour: 8, minute: 0 }, { hour: 18, minute: 0 }];
+}
+
+const DEFAULT_NOTIF_HOUR: Partial<Record<CareType, number>> = {
+  feeding: 8, walking: 9, teeth: 20, training: 10, worming: 9, vet: 9, grooming: 9,
+};
 
 function daysAgoISO(days: number): string {
   const d = new Date();
@@ -84,6 +95,26 @@ export default function OnboardingScreen() {
   const [vetLastDate,          setVetLastDate]          = useState<string | null>(null);
   const [groomingLastDate,     setGroomingLastDate]     = useState<string | null>(null);
 
+  const [feedingTimesPerDay, setFeedingTimesPerDay] = useState(2);
+  const [feedingTimes, setFeedingTimes] = useState<FeedingTime[]>(defaultFeedingTimes(2));
+  const [activityNotifications, setActivityNotifications] = useState<Partial<Record<CareType, ActivityNotification>>>({
+    feeding:  { enabled: true,  hour: 8,  minute: 0 },
+    worming:  { enabled: true,  hour: 9,  minute: 0 },
+    vet:      { enabled: true,  hour: 9,  minute: 0 },
+    grooming: { enabled: true,  hour: 9,  minute: 0 },
+    walking:  { enabled: false, hour: 9,  minute: 0 },
+    teeth:    { enabled: false, hour: 20, minute: 0 },
+    training: { enabled: false, hour: 10, minute: 0 },
+  });
+
+  const toggleNotification = (type: CareType) => {
+    Haptics.selectionAsync();
+    setActivityNotifications(prev => ({
+      ...prev,
+      [type]: { ...(prev[type] ?? { hour: DEFAULT_NOTIF_HOUR[type] ?? 9, minute: 0 }), enabled: !prev[type]?.enabled },
+    }));
+  };
+
   const toggleActivity = (type: CareType) => {
     Haptics.selectionAsync();
     setTracked(prev =>
@@ -118,6 +149,9 @@ export default function OnboardingScreen() {
       wormingLastDate,
       vetLastDate,
       groomingLastDate,
+      feedingTimesPerDay,
+      feedingTimes,
+      activityNotifications,
     });
     router.replace('/');
   };
@@ -251,6 +285,24 @@ export default function OnboardingScreen() {
           <>
             <Text style={styles.heading}>SET YOUR{'\n'}GOALS</Text>
 
+            {tracked.includes('feeding') && (
+              <>
+                <Text style={styles.sectionLabel}>🍖 FEEDING — TIMES PER DAY?</Text>
+                <FrequencyStepper
+                  value={feedingTimesPerDay} min={1} max={3} unit="×/day"
+                  onChange={v => { setFeedingTimesPerDay(v); setFeedingTimes(defaultFeedingTimes(v)); }}
+                />
+                {feedingTimes.map((t, i) => (
+                  <View key={i}>
+                    <Text style={styles.sectionLabel}>MEAL {i + 1} TIME</Text>
+                    <TimePicker
+                      time={t}
+                      onChange={updated => setFeedingTimes(prev => prev.map((ft, j) => j === i ? updated : ft))}
+                    />
+                  </View>
+                ))}
+              </>
+            )}
             {tracked.includes('walking') && (
               <>
                 <Text style={styles.sectionLabel}>🐾 WALKIES — HOW OFTEN PER WEEK?</Text>
@@ -293,6 +345,26 @@ export default function OnboardingScreen() {
                 <QuickPicker options={GROOMING_LAST_OPTIONS} selected={groomingLastDate} onSelect={setGroomingLastDate} />
               </>
             )}
+
+            {/* Notification toggles */}
+            <Text style={[styles.sectionTag, { marginTop: 24 }]}>NOTIFICATIONS</Text>
+            {tracked.map(type => {
+              const cfg = activityNotifications[type];
+              const emoji = type === 'feeding' ? '🍖' : type === 'walking' ? '🐾' : type === 'teeth' ? '🦷'
+                : type === 'training' ? '🎓' : type === 'worming' ? '💊' : type === 'vet' ? '🏥' : '✂️';
+              const label = type === 'feeding' ? 'Feeding reminders' : type === 'walking' ? 'Walk reminders'
+                : type === 'teeth' ? 'Teeth reminders' : type === 'training' ? 'Training reminders'
+                : type === 'worming' ? 'Worming due alerts' : type === 'vet' ? 'Vet due alerts' : 'Grooming due alerts';
+              return (
+                <Pressable key={type} onPress={() => toggleNotification(type)} style={styles.notifRow}>
+                  <Text style={styles.notifEmoji}>{emoji}</Text>
+                  <Text style={styles.notifLabel}>{label.toUpperCase()}</Text>
+                  <View style={[styles.toggle, cfg?.enabled && styles.toggleOn]}>
+                    <View style={[styles.toggleThumb, cfg?.enabled && styles.toggleThumbOn]} />
+                  </View>
+                </Pressable>
+              );
+            })}
           </>
         )}
 
@@ -315,6 +387,37 @@ export default function OnboardingScreen() {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+function TimePicker({ time, onChange }: { time: FeedingTime; onChange: (t: FeedingTime) => void }) {
+  const hour12 = time.hour === 0 ? 12 : time.hour > 12 ? time.hour - 12 : time.hour;
+  const isAM   = time.hour < 12;
+
+  const adjustHour = (delta: number) => {
+    Haptics.selectionAsync();
+    const next12 = ((hour12 - 1 + delta + 12) % 12) + 1;
+    onChange({ ...time, hour: next12 % 12 + (isAM ? 0 : 12) });
+  };
+
+  const toggleAMPM = () => {
+    Haptics.selectionAsync();
+    onChange({ ...time, hour: isAM ? time.hour + 12 : Math.max(0, time.hour - 12) });
+  };
+
+  return (
+    <View style={styles.stepperRow}>
+      <Pressable onPress={() => adjustHour(-1)} style={styles.stepperBtn}>
+        <Text style={styles.stepperBtnText}>−</Text>
+      </Pressable>
+      <Text style={styles.stepperValue}>{hour12}:00</Text>
+      <Pressable onPress={() => adjustHour(1)} style={styles.stepperBtn}>
+        <Text style={styles.stepperBtnText}>+</Text>
+      </Pressable>
+      <Pressable onPress={toggleAMPM} style={styles.ampmBtn}>
+        <Text style={styles.ampmText}>{isAM ? 'AM' : 'PM'}</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 function FrequencyStepper({
   value, min, max, unit, onChange,
@@ -437,4 +540,27 @@ const styles = StyleSheet.create({
   dotsRow: { flexDirection: 'row', gap: 8 },
   dot:       { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.dogEmpty },
   dotActive: { backgroundColor: Colors.accent, width: 20, borderRadius: 4 },
+  ampmBtn: {
+    backgroundColor: Colors.background, borderWidth: 2, borderColor: Colors.border,
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
+  },
+  ampmText: { fontFamily: PIXEL_FONT, fontSize: 9, color: Colors.accent },
+  notifRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, width: '100%',
+    paddingVertical: 10, paddingHorizontal: 14,
+    backgroundColor: Colors.card, borderWidth: 2, borderColor: Colors.dogEmpty,
+    borderRadius: 12, marginBottom: 8,
+  },
+  notifEmoji: { fontSize: 18 },
+  notifLabel: { fontFamily: PIXEL_FONT, fontSize: 7, color: Colors.text, flex: 1 },
+  toggle: {
+    width: 40, height: 22, borderRadius: 11, backgroundColor: Colors.dogEmpty,
+    justifyContent: 'center', paddingHorizontal: 2,
+  },
+  toggleOn: { backgroundColor: Colors.positive },
+  toggleThumb: {
+    width: 18, height: 18, borderRadius: 9, backgroundColor: '#FFF',
+    shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, shadowOffset: { width: 0, height: 1 },
+  },
+  toggleThumbOn: { alignSelf: 'flex-end' },
 });

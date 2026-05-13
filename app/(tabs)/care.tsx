@@ -9,7 +9,7 @@ import { Sparkle } from '@/components/sparkle';
 import { useAppData } from '@/hooks/use-app-data';
 
 export default function CareScreen() {
-  const { dog, logCare, weeklyScores, periodicScores } = useAppData();
+  const { dog, logCare, weeklyScores, periodicScores, dailyScores } = useAppData();
   const insets = useSafeAreaInsets();
 
   if (!dog) return null;
@@ -17,6 +17,7 @@ export default function CareScreen() {
   const tracked = dog.trackedActivities;
   const { walking, teeth, training } = weeklyScores;
   const { worming, vet, grooming }   = periodicScores;
+  const { feeding }                  = dailyScores;
 
   return (
     <View style={styles.page}>
@@ -30,6 +31,10 @@ export default function CareScreen() {
           <Sparkle size={12} />
         </View>
 
+        {tracked.includes('feeding') && (
+          <CareCard kind="daily" emoji={CARE_ACTIVITIES.feeding.emoji} label={CARE_ACTIVITIES.feeding.label}
+            done={feeding.done} target={feeding.target} onLog={() => logCare('feeding')} />
+        )}
         {tracked.includes('walking') && (
           <CareCard kind="weekly" emoji={CARE_ACTIVITIES.walking.emoji} label={CARE_ACTIVITIES.walking.label}
             done={walking.done} target={walking.target} onLog={() => logCare('walking')} />

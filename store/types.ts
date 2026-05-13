@@ -1,5 +1,13 @@
-export type CareType = 'teeth' | 'worming' | 'vet' | 'walking' | 'grooming' | 'training';
+export type CareType = 'teeth' | 'worming' | 'vet' | 'walking' | 'grooming' | 'training' | 'feeding';
 export type BreedId = 'corgi' | 'dachshund' | 'frenchie' | 'husky' | 'poodle';
+
+export type FeedingTime = { hour: number; minute: number }; // 24-hour
+
+export type ActivityNotification = {
+  enabled: boolean;
+  hour: number;   // 24-hour
+  minute: number;
+};
 
 export type CareLog = {
   id: string;
@@ -20,6 +28,9 @@ export type DogProfile = {
   wormingLastDate: string | null;
   vetLastDate: string | null;
   groomingLastDate: string | null;
+  feedingTimesPerDay: number;
+  feedingTimes: FeedingTime[];
+  activityNotifications: Partial<Record<CareType, ActivityNotification>>;
 };
 
 export type AppData = {

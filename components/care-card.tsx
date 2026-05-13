@@ -18,6 +18,7 @@ type Props = {
   onLog: () => void;
 } & (
   | { kind: 'weekly'; done: number; target: number }
+  | { kind: 'daily';  done: number; target: number }
   | { kind: 'periodic'; daysSinceLast: number | null; frequencyDays: number; lastDate: string | null }
 );
 
@@ -43,10 +44,10 @@ export function CareCard(props: Props) {
   const counterScale = useSharedValue(1);
   const plusOneOpacity = useSharedValue(0);
   const plusOneY = useSharedValue(0);
-  const prevDone = useRef(props.kind === 'weekly' ? props.done : 0);
+  const prevDone = useRef((props.kind === 'weekly' || props.kind === 'daily') ? props.done : 0);
 
   useEffect(() => {
-    if (props.kind !== 'weekly') return;
+    if (props.kind !== 'weekly' && props.kind !== 'daily') return;
     if (props.done > prevDone.current) {
       // Bounce the score counter
       counterScale.value = withSequence(
@@ -64,7 +65,7 @@ export function CareCard(props: Props) {
     }
     prevDone.current = props.done;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.kind === 'weekly' ? props.done : null]);
+  }, [(props.kind === 'weekly' || props.kind === 'daily') ? props.done : null]);
 
   const counterStyle = useAnimatedStyle(() => ({
     transform: [{ scale: counterScale.value }],
@@ -92,20 +93,20 @@ export function CareCard(props: Props) {
   const isOverdue =
     props.kind === 'periodic' &&
     (props.daysSinceLast === null || props.daysSinceLast >= props.frequencyDays);
-  const weeklyDone = props.kind === 'weekly' && props.done >= props.target;
-  const accentColor = isOverdue ? Colors.negative : weeklyDone ? Colors.positive : Colors.accent;
+  const countDone = (props.kind === 'weekly' || props.kind === 'daily') && props.done >= props.target;
+  const accentColor = isOverdue ? Colors.negative : countDone ? Colors.positive : Colors.accent;
 
   return (
     <OffsetCard style={[styles.card, { borderColor: accentColor }] as StyleProp<ViewStyle>}>
       <View style={styles.header}>
         <Text style={styles.emoji}>{emoji}</Text>
         <Text style={styles.label}>{label.toUpperCase()}</Text>
-        {(weeklyDone || (props.kind === 'periodic' && !isOverdue)) && (
+        {(countDone || (props.kind === 'periodic' && !isOverdue)) && (
           <Sparkle size={14} color={accentColor} />
         )}
       </View>
 
-      {props.kind === 'weekly' && (
+      {(props.kind === 'weekly' || props.kind === 'daily') && (
         <View style={styles.body}>
           <View style={styles.progressRow}>
             <View style={styles.progressTrack}>
@@ -116,7 +117,6 @@ export function CareCard(props: Props) {
                 ]}
               />
             </View>
-            {/* Animated score counter */}
             <View style={styles.scoreWrap}>
               <Animated.View style={[styles.plusOneWrap, plusOneStyle]}>
                 <Text style={[styles.plusOne, { color: accentColor }]}>+1</Text>
@@ -128,7 +128,7 @@ export function CareCard(props: Props) {
               </Animated.View>
             </View>
           </View>
-          <Text style={styles.sub}>THIS WEEK</Text>
+          <Text style={styles.sub}>{props.kind === 'daily' ? 'TODAY' : 'THIS WEEK'}</Text>
         </View>
       )}
 

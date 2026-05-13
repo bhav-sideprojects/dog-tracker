@@ -18,9 +18,10 @@ import { BREED_ORDER, BREEDS } from '@/constants/breeds';
 import { DogMascot } from '@/components/dog-mascot';
 import { OffsetCard } from '@/components/offset-card';
 import { useAppData } from '@/hooks/use-app-data';
-import { BreedId, CareType } from '@/store/types';
+import { ActivityNotification, BreedId, CareType, FeedingTime } from '@/store/types';
 
 const ALL_ACTIVITIES: { type: CareType; emoji: string; label: string; hint?: string }[] = [
+  { type: 'feeding',  emoji: '🍖', label: 'Feeding' },
   { type: 'walking',  emoji: '🐾', label: 'Walkies' },
   { type: 'teeth',    emoji: '🦷', label: 'Teeth Brushing' },
   { type: 'worming',  emoji: '💊', label: 'Worming Tablet' },
@@ -28,6 +29,17 @@ const ALL_ACTIVITIES: { type: CareType; emoji: string; label: string; hint?: str
   { type: 'grooming', emoji: '✂️', label: 'Grooming',    hint: 'Suggested' },
   { type: 'training', emoji: '🎓', label: 'Training',    hint: 'Suggested' },
 ];
+
+function defaultFeedingTimes(perDay: number): FeedingTime[] {
+  if (perDay === 1) return [{ hour: 8, minute: 0 }];
+  if (perDay === 3) return [{ hour: 8, minute: 0 }, { hour: 13, minute: 0 }, { hour: 18, minute: 0 }];
+  return [{ hour: 8, minute: 0 }, { hour: 18, minute: 0 }];
+}
+
+const NOTIF_LABELS: Partial<Record<CareType, string>> = {
+  feeding: 'Feeding reminders', walking: 'Walk reminders', teeth: 'Teeth reminders',
+  training: 'Training reminders', worming: 'Worming due alerts', vet: 'Vet due alerts', grooming: 'Grooming due alerts',
+};
 
 function daysAgoISO(days: number): string {
   const d = new Date();
@@ -76,6 +88,29 @@ export default function SettingsScreen() {
   const [vetLastDate,       setVetLastDate]       = useState<string | null>(dog?.vetLastDate       ?? null);
   const [groomingLastDate,  setGroomingLastDate]  = useState<string | null>(dog?.groomingLastDate  ?? null);
 
+  const [feedingTimesPerDay, setFeedingTimesPerDay] = useState(dog?.feedingTimesPerDay ?? 2);
+  const [feedingTimes, setFeedingTimes] = useState<FeedingTime[]>(
+    dog?.feedingTimes ?? [{ hour: 8, minute: 0 }, { hour: 18, minute: 0 }]
+  );
+  const [activityNotifications, setActivityNotifications] = useState<Partial<Record<CareType, ActivityNotification>>>(
+    dog?.activityNotifications ?? {}
+  );
+
+  const toggleNotification = (type: CareType) => {
+    Haptics.selectionAsync();
+    setActivityNotifications(prev => ({
+      ...prev,
+      [type]: { ...(prev[type] ?? { hour: 9, minute: 0 }), enabled: !prev[type]?.enabled },
+    }));
+  };
+
+  const setNotifTime = (type: CareType, time: FeedingTime) => {
+    setActivityNotifications(prev => ({
+      ...prev,
+      [type]: { ...(prev[type] ?? { enabled: false }), ...time },
+    }));
+  };
+
   const [devTaps, setDevTaps] = useState(0);
   const devUnlocked = devTaps >= 5;
 
@@ -94,6 +129,7 @@ export default function SettingsScreen() {
       vetFrequencyDays:      vetFreqMonths     * 30,
       groomingFrequencyDays: groomingFreqWeeks * 7,
       wormingLastDate, vetLastDate, groomingLastDate,
+      feedingTimesPerDay, feedingTimes, activityNotifications,
     });
     router.back();
   };
@@ -188,6 +224,24 @@ export default function SettingsScreen() {
         <OffsetCard style={styles.section}>
           <Text style={styles.sectionTitle}>GOALS.SETUP ✦</Text>
 
+          {tracked.includes('feeding') && (
+            <>
+              <Text style={styles.fieldLabel}>🍖 FEEDING — TIMES PER DAY</Text>
+              <FrequencyStepper
+                value={feedingTimesPerDay} min={1} max={3} unit="×/day"
+                onChange={v => { setFeedingTimesPerDay(v); setFeedingTimes(defaultFeedingTimes(v)); }}
+              />
+              {feedingTimes.map((t, i) => (
+                <View key={i}>
+                  <Text style={styles.fieldLabel}>MEAL {i + 1} TIME</Text>
+                  <TimePicker
+                    time={t}
+                    onChange={updated => setFeedingTimes(prev => prev.map((ft, j) => j === i ? updated : ft))}
+                  />
+                </View>
+              ))}
+            </>
+          )}
           {tracked.includes('walking') && (
             <>
               <Text style={styles.fieldLabel}>🐾 WALKIES PER WEEK</Text>
@@ -232,6 +286,38 @@ export default function SettingsScreen() {
           )}
         </OffsetCard>
 
+        {/* Notifications */}
+        <OffsetCard style={styles.section}>
+          <Text style={styles.sectionTitle}>NOTIFICATIONS ✦</Text>
+          {tracked.map(type => {
+            const cfg = activityNotifications[type];
+            const enabled = cfg?.enabled ?? false;
+            const emoji = ALL_ACTIVITIES.find(a => a.type === type)?.emoji ?? '🐾';
+            return (
+              <View key={type}>
+                <Pressable onPress={() => toggleNotification(type)} style={[styles.notifRow, enabled && styles.notifRowOn]}>
+                  <Text style={styles.activityEmoji}>{emoji}</Text>
+                  <Text style={[styles.activityLabel, enabled && styles.activityLabelSelected]}>
+                    {(NOTIF_LABELS[type] ?? type).toUpperCase()}
+                  </Text>
+                  <View style={[styles.toggle, enabled && styles.toggleOn]}>
+                    <View style={[styles.toggleThumb, enabled && styles.toggleThumbOn]} />
+                  </View>
+                </Pressable>
+                {enabled && type !== 'feeding' && (
+                  <View style={{ marginBottom: 8 }}>
+                    <Text style={styles.fieldLabel}>REMINDER TIME</Text>
+                    <TimePicker
+                      time={{ hour: cfg?.hour ?? 9, minute: cfg?.minute ?? 0 }}
+                      onChange={t => setNotifTime(type, t)}
+                    />
+                  </View>
+                )}
+              </View>
+            );
+          })}
+        </OffsetCard>
+
         <Pressable
           onPress={handleSave}
           disabled={!canSave}
@@ -262,6 +348,37 @@ export default function SettingsScreen() {
         )}
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+function TimePicker({ time, onChange }: { time: FeedingTime; onChange: (t: FeedingTime) => void }) {
+  const hour12 = time.hour === 0 ? 12 : time.hour > 12 ? time.hour - 12 : time.hour;
+  const isAM   = time.hour < 12;
+
+  const adjustHour = (delta: number) => {
+    Haptics.selectionAsync();
+    const next12 = ((hour12 - 1 + delta + 12) % 12) + 1;
+    onChange({ ...time, hour: next12 % 12 + (isAM ? 0 : 12) });
+  };
+
+  const toggleAMPM = () => {
+    Haptics.selectionAsync();
+    onChange({ ...time, hour: isAM ? time.hour + 12 : Math.max(0, time.hour - 12) });
+  };
+
+  return (
+    <View style={styles.stepperRow}>
+      <Pressable onPress={() => adjustHour(-1)} style={styles.stepperBtn}>
+        <Text style={styles.stepperBtnText}>−</Text>
+      </Pressable>
+      <Text style={styles.stepperValue}>{hour12}:00</Text>
+      <Pressable onPress={() => adjustHour(1)} style={styles.stepperBtn}>
+        <Text style={styles.stepperBtnText}>+</Text>
+      </Pressable>
+      <Pressable onPress={toggleAMPM} style={styles.ampmBtn}>
+        <Text style={styles.ampmText}>{isAM ? 'AM' : 'PM'}</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -376,4 +493,25 @@ const styles = StyleSheet.create({
   devInfo: { fontFamily: PIXEL_FONT, fontSize: 6, color: Colors.textMuted, lineHeight: 12, marginBottom: 16 },
   resetBtn:     { backgroundColor: Colors.negative, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   resetBtnText: { fontFamily: PIXEL_FONT, fontSize: 8, color: '#FFF', letterSpacing: 0.5 },
+  ampmBtn: {
+    backgroundColor: Colors.background, borderWidth: 1.5, borderColor: Colors.border,
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5,
+  },
+  ampmText: { fontFamily: PIXEL_FONT, fontSize: 8, color: Colors.accent },
+  notifRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10,
+    paddingHorizontal: 12, borderRadius: 10, borderWidth: 1.5,
+    borderColor: Colors.dogEmpty, marginBottom: 6,
+  },
+  notifRowOn: { borderColor: Colors.positive },
+  toggle: {
+    width: 38, height: 20, borderRadius: 10, backgroundColor: Colors.dogEmpty,
+    justifyContent: 'center', paddingHorizontal: 2,
+  },
+  toggleOn: { backgroundColor: Colors.positive },
+  toggleThumb: {
+    width: 16, height: 16, borderRadius: 8, backgroundColor: '#FFF',
+    shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, shadowOffset: { width: 0, height: 1 },
+  },
+  toggleThumbOn: { alignSelf: 'flex-end' },
 });

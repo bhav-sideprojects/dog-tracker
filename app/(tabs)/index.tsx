@@ -16,7 +16,7 @@ import { OffsetCard } from '@/components/offset-card';
 import { useAppData } from '@/hooks/use-app-data';
 
 export default function HomeScreen() {
-  const { dog, fillPercent, weeklyScores, periodicScores, logCare } = useAppData();
+  const { dog, fillPercent, weeklyScores, periodicScores, dailyScores, logCare } = useAppData();
   const insets = useSafeAreaInsets();
 
   // ── Animate health % when fillPercent changes ─────────────────────────────
@@ -43,6 +43,7 @@ export default function HomeScreen() {
   const healthPct = Math.round(fillPercent * 100);
   const { worming, vet, grooming } = periodicScores;
   const { walking, teeth, training } = weeklyScores;
+  const { feeding } = dailyScores;
 
   function periodicStatus(daysSince: number | null, freq: number): string {
     if (daysSince === null) return 'NEVER';
@@ -53,8 +54,10 @@ export default function HomeScreen() {
 
   const trackedWeekly   = dog.trackedActivities.filter(t => t === 'walking' || t === 'teeth' || t === 'training') as ('walking' | 'teeth' | 'training')[];
   const trackedPeriodic = dog.trackedActivities.filter(t => t === 'worming' || t === 'vet' || t === 'grooming') as ('worming' | 'vet' | 'grooming')[];
+  const trackingFeeding = dog.trackedActivities.includes('feeding');
 
   const QUICK_LOG_ITEMS = [
+    { type: 'feeding'  as const, emoji: '🍖', label: 'Feed' },
     { type: 'walking'  as const, emoji: '🐾', label: 'Walk' },
     { type: 'teeth'    as const, emoji: '🦷', label: 'Teeth' },
     { type: 'training' as const, emoji: '🎓', label: 'Train' },
@@ -147,6 +150,20 @@ export default function HomeScreen() {
           </OffsetCard>
         )}
 
+        {/* Feeding stat */}
+        {trackingFeeding && (
+          <OffsetCard style={styles.feedingCard}>
+            <Text style={styles.periodicTitle}>FEEDING.LOG ✦</Text>
+            <View style={styles.periodicRow}>
+              <Text style={styles.periodicEmoji}>🍖</Text>
+              <Text style={styles.periodicLabel}>TODAY</Text>
+              <Text style={[styles.periodicStatus, { color: feeding.done >= feeding.target ? Colors.positive : Colors.accent }]}>
+                {feeding.done}/{feeding.target}
+              </Text>
+            </View>
+          </OffsetCard>
+        )}
+
         {/* Quick log */}
         <OffsetCard style={styles.quickLogCard}>
           <Text style={styles.quickLogTitle}>QUICK.LOG ✦</Text>
@@ -213,6 +230,7 @@ const styles = StyleSheet.create({
   },
   statPillText: { fontFamily: PIXEL_FONT, fontSize: 6, letterSpacing: 0.5 },
   periodicCard: { width: '100%', marginBottom: 12 },
+  feedingCard:  { width: '100%', marginBottom: 12 },
   periodicTitle: { fontFamily: PIXEL_FONT, fontSize: 9, color: Colors.text, marginBottom: 12, letterSpacing: 0.5 },
   periodicRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
   periodicEmoji: { fontSize: 18 },
