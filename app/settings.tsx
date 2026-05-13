@@ -103,7 +103,7 @@ export default function SettingsScreen() {
           style: 'destructive',
           onPress: async () => {
             await resetApp();
-            router.replace('/onboarding');
+            // _layout.tsx watches dog and redirects to /onboarding automatically
           },
         },
       ]
