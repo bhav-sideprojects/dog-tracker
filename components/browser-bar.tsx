@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, PIXEL_FONT } from '@/constants/theme';
 
@@ -21,6 +22,9 @@ export function BrowserBar({ path = '' }: Props) {
           {path ? `/${path}` : ''}
         </Text>
       </View>
+      <Pressable onPress={() => router.push('/settings')} style={styles.settingsBtn} hitSlop={8}>
+        <Text style={styles.settingsIcon}>⚙</Text>
+      </Pressable>
     </View>
   );
 }
@@ -59,5 +63,15 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: Colors.accent,
     letterSpacing: 0.5,
+  },
+  settingsBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsIcon: {
+    fontSize: 18,
+    color: Colors.text,
   },
 });

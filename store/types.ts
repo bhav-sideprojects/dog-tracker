@@ -22,4 +22,5 @@ export type DogProfile = {
 export type AppData = {
   dog: DogProfile | null;
   logs: CareLog[];
+  _schemaVersion?: number;
 };

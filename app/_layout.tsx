@@ -37,6 +37,7 @@ function RootNavigation() {
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="settings" options={{ headerShown: false, presentation: 'modal' }} />
       </Stack>
       <StatusBar style="dark" />
     </ThemeProvider>

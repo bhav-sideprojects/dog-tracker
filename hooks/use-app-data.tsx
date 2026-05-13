@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { loadData, saveData } from '@/store/app-store';
+import { clearData, loadData, saveData } from '@/store/app-store';
 import { AppData, CareLog, CareType, DogProfile } from '@/store/types';
 
 // ── date helpers ──────────────────────────────────────────────────────────────
@@ -86,6 +86,8 @@ type AppDataContextValue = {
   weeklyScores: { walking: WeeklyScore; teeth: WeeklyScore };
   periodicScores: { worming: PeriodicScore; vet: PeriodicScore };
   setDog: (profile: DogProfile) => Promise<void>;
+  updateDog: (profile: DogProfile) => Promise<void>;
+  resetApp: () => Promise<void>;
   logCare: (type: CareType) => Promise<void>;
 };
 
@@ -121,6 +123,23 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     await persist({ dog: profile, logs: initialLogs });
   }, [persist]);
 
+  const updateDog = useCallback(async (profile: DogProfile) => {
+    // Keep existing logs but replace the init seed logs for periodic activities
+    let logs = dataRef.current.logs.filter(l => l.id !== 'init-worming' && l.id !== 'init-vet');
+    if (profile.wormingLastDate && profile.trackedActivities.includes('worming')) {
+      logs = [...logs, { id: 'init-worming', type: 'worming' as CareType, date: profile.wormingLastDate }];
+    }
+    if (profile.vetLastDate && profile.trackedActivities.includes('vet')) {
+      logs = [...logs, { id: 'init-vet', type: 'vet' as CareType, date: profile.vetLastDate }];
+    }
+    await persist({ dog: profile, logs });
+  }, [persist]);
+
+  const resetApp = useCallback(async () => {
+    await clearData();
+    setData({ dog: null, logs: [] });
+  }, []);
+
   const logCare = useCallback(async (type: CareType) => {
     const log: CareLog = { id: Date.now().toString(), type, date: new Date().toISOString() };
     const next = { ...dataRef.current, logs: [...dataRef.current.logs, log] };
@@ -145,6 +164,8 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       weeklyScores:  { walking, teeth },
       periodicScores: { worming, vet },
       setDog,
+      updateDog,
+      resetApp,
       logCare,
     }}>
       {children}
