@@ -1,24 +1,52 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
+import { useEffect } from 'react';
+import { useFonts, PressStart2P_400Regular } from '@expo-google-fonts/press-start-2p';
+import * as SplashScreen from 'expo-splash-screen';
+import { AppDataProvider, useAppData } from '@/hooks/use-app-data';
+import { Colors } from '@/constants/theme';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+SplashScreen.preventAutoHideAsync();
 
-export const unstable_settings = {
-  anchor: '(tabs)',
+const AppTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: Colors.background,
+  },
 };
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
+function RootNavigation() {
+  const { isLoading, dog } = useAppData();
+  const [fontsLoaded] = useFonts({ PressStart2P_400Regular });
+
+  useEffect(() => {
+    if (!isLoading && fontsLoaded) {
+      SplashScreen.hideAsync();
+      if (!dog) {
+        router.replace('/onboarding');
+      }
+    }
+  }, [isLoading, fontsLoaded, dog]);
+
+  if (!fontsLoaded || isLoading) return null;
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={AppTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
       </Stack>
-      <StatusBar style="auto" />
+      <StatusBar style="dark" />
     </ThemeProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <AppDataProvider>
+      <RootNavigation />
+    </AppDataProvider>
   );
 }
