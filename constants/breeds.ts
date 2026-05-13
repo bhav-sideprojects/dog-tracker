@@ -1,6 +1,6 @@
 import { BreedId } from '@/store/types';
 
-// 0=transparent  1=primary body  2=secondary (muzzle/markings)  3=dark (eyes/nose)
+// 0=transparent  1=primary body  2=secondary (muzzle/markings/chest)  3=dark (eyes/nose)
 type PixelValue = 0 | 1 | 2 | 3;
 export type PixelGrid = PixelValue[][];
 
@@ -27,117 +27,119 @@ function p(rows: string[]): PixelGrid {
   });
 }
 
-// All grids: front-facing dog faces, 20 cols × 18 rows
+// All grids: front-facing sitting full-body pose, 20 cols × 18 rows
+// Layer order when rendered: primary fill (animated) → secondary always → dark always
 // ─────────────────────────────────────────────────────────────────────────────
 
-// CORGI — large triangular ears pointing up, orange body, cream muzzle
-const CORGI_GRID = p([
-  '.11...........11....',
-  '1111..........1111..',
-  '11111........11111..',
-  '111111......111111..',
-  '1111111....1111111..',
-  '11111111111111111111',
-  '11111111111111111111',
-  '11111131111113111111',  // eyes at cols 6, 13
-  '11111111111111111111',
-  '11111122222221111111',  // cream muzzle starts
-  '11111122322221111111',  // nose at col 8
-  '11111122222221111111',
-  '11111112222211111111',
-  '11111111111111111111',
-  '.111111111111111111.',
-  '..11111111111111111.',
-  '...111111111111111..',
-  '....11111111111.....',
-]);
-
-// DACHSHUND — very long droopy ears hanging to sides (cols 0-1 and 18-19)
-const DACHSHUND_GRID = p([
-  '....11111111111.....',
-  '...1111111111111....',
-  '..111111111111111...',
-  '11.11111111111111.11',  // ears appear at cols 0-1 and 18-19
-  '11.11111111111111.11',
-  '11.11131111113111.11',  // eyes
-  '11.11111111111111.11',
-  '11.11122222221111.11',  // muzzle
-  '11.11122322221111.11',  // nose
-  '11.11122222221111.11',
-  '11.11111111111111.11',
-  '11.11111111111111.11',
-  '11..1111111111111.11',
-  '11...111111111111.11',
-  '11....11111111111.11',
-  '11................11',  // ears only
-  '11................11',
-  '11................11',
-]);
-
-// FRENCH BULLDOG — wide bat ears at top corners, stocky face
-const FRENCHIE_GRID = p([
-  '1111............1111',
-  '1111..........111111',
-  '111111......11111111',
-  '11111111111111111111',
-  '11111111111111111111',
-  '11111111111111111111',
-  '11111131111113111111',  // eyes
-  '11111111111111111111',
-  '11111122222221111111',  // muzzle
-  '11111122322221111111',  // nose
-  '11111122222221111111',
-  '11111112222211111111',
-  '11111111111111111111',
-  '.111111111111111111.',
-  '..11111111111111111.',
-  '..1111111111111111..',
-  '...111111111111111..',
-  '....11111111111111..',
-]);
-
-// HUSKY — pointed upright ears, gray face markings around eyes, lighter muzzle
-const HUSKY_GRID = p([
-  '....111..111........',
-  '...11111.11111......',
-  '..111111111111111...',
-  '.1111111111111111...',
-  '.1111111111111111...',
-  '.1111111111111111...',
-  '.1111113111131111...',  // eyes at cols 7, 12
-  '.1111111111111111...',
-  '.1111112222221111...',  // lighter muzzle
-  '.1111112232221111...',  // nose
-  '.1111112222221111...',
-  '.1111111111111111...',
-  '..111111111111111...',
-  '..111111111111111...',
-  '...11111111111111...',
-  '...11111111111......',
-  '....111111111.......',
-  '....111111111.......',
-]);
-
-// TOY POODLE — very round fluffy head, large ears hanging (cols 0-1 and 18-19), warm apricot
+// TOY POODLE — round pompom ears, fluffy round body, apricot brown
+// Based on reference: sitting pose, prominent round ears, curly tail bottom-right
 const POODLE_GRID = p([
-  '....11111111111.....',
-  '..1111111111111111..',
-  '.11111111111111111..',
-  '111111111111111111..',
-  '11111111111111111111',
-  '11111111111111111111',
-  '11111131111113111111',  // eyes at cols 6, 13
-  '11111111111111111111',
-  '11111111111111111111',
-  '11111122222221111111',  // muzzle
-  '11111222222222111111',
-  '11111122322222111111',  // nose
-  '11111122222221111111',
-  '11.111111111111111..',  // ears separate (cols 0-1 and 18-19)
-  '11.111111111111111..',
-  '11.111111111111111..',
-  '11..111111111111....',
-  '11...111111111......',
+  '......1111111.......',  // head top
+  '..11.11111111.11....',  // pompom ear tops + head
+  '.111.11111111.111...',  // ears + head
+  '.111.11131311.111...',  // ears + eyes (3 at cols 8, 10)
+  '.111.11122211.111...',  // ears + muzzle
+  '.111.11132211.111...',  // ears + nose (3 at col 8)
+  '.11..11111111..11...',  // ear bottom + chin
+  '.....11111111.......',  // neck
+  '....1111111111......',  // body top
+  '...111122221111.....',  // body + cream chest
+  '...111111111111.....',  // body
+  '...111111111111.....',  // body
+  '...11111111111111...',  // body wide
+  '....1111111111.11...',  // lower body + tail (cols 15-16)
+  '....1111111111.11...',  // body + tail
+  '....1111..11111.....',  // legs
+  '.....111...1111.....',  // paws
+  '.....11.....11......',  // feet
+]);
+
+// CORGI — large triangular ears pointing straight up, wide orange face, cream chest
+const CORGI_GRID = p([
+  '...111.......111....',  // ear tips
+  '..1111.......1111...',  // ears
+  '.11111.......11111..',  // ears
+  '.111111111111111111.',  // ears connect to head
+  '11111111111111111111',  // full-width head
+  '11111113111131111111',  // eyes (3 at cols 7, 12)
+  '11111122222211111111',  // muzzle (2 at cols 7-12)
+  '11111122322211111111',  // nose (3 at col 9)
+  '.111111111111111111.',  // chin/jowls
+  '..11111111111111111.',  // neck
+  '..111112222211111...',  // body + cream chest
+  '..111112222211111...',  // chest
+  '...11111111111111...',  // body
+  '...1111111111111....',  // lower body
+  '....111111111111....',  // body bottom
+  '....11111.11111.....',  // legs
+  '.....1111..1111.....',  // paws
+  '.....111....111.....',  // feet
+]);
+
+// DACHSHUND — very long droopy ears hanging from sides of head
+const DACHSHUND_GRID = p([
+  '......11111111......',  // head top
+  '.....1111111111.....',  // head
+  '.11..1111111111..11.',  // ear start + head
+  '.11..1131311111..11.',  // ears + eyes (3 at cols 7, 9)
+  '.11..1122221111..11.',  // ears + muzzle
+  '.11..1132221111..11.',  // ears + nose
+  '.11..1111111111..11.',  // ears + chin
+  '.11..1111111111..11.',  // ears hanging
+  '.11.1111111111111.11',  // ears + body
+  '.11.1111111111111.11',  // ears + body
+  '.11.1111111111111.11',  // ears + body
+  '.11..111111111111.11',  // ears + body
+  '.11...11111111111.11',  // ears + body
+  '.....11111111111....',  // body
+  '.....11111111111....',  // lower body
+  '.....11111.11111....',  // legs
+  '......1111..1111....',  // paws
+  '......111....111....',  // feet
+]);
+
+// FRENCH BULLDOG — wide bat ears at top corners, stocky face, fawn
+const FRENCHIE_GRID = p([
+  '111111........111111',  // bat ears at corners
+  '1111111......1111111',  // ears narrowing toward head
+  '11111111....11111111',  // ears + head top
+  '11111111111111111111',  // full head
+  '11111111111111111111',  // head
+  '11111131111131111111',  // eyes (3 at cols 7, 12)
+  '11111122222211111111',  // muzzle/jowls
+  '11111122322211111111',  // nose (3 at col 9)
+  '.111111111111111111.',  // chin/jowls
+  '..11111111111111111.',  // neck
+  '..111112222211111...',  // body + cream chest
+  '..111112222211111...',  // chest
+  '...11111111111111...',  // body
+  '....1111111111111...',  // lower body
+  '.....111111111111...',  // body bottom
+  '.....11111.11111....',  // legs
+  '......1111..1111....',  // paws
+  '......111....111....',  // feet
+]);
+
+// HUSKY — pointed ears, distinctive eye mask (secondary=light), wolf-like
+const HUSKY_GRID = p([
+  '....111.....111.....',  // ear tips
+  '...11111...11111....',  // ears
+  '..111111...111111...',  // ears + head sides
+  '..11111111111111....',  // head
+  '..111122222211111...',  // eye mask (2 = light/white)
+  '..111123122311111...',  // eyes (3 at cols 7, 11) within mask
+  '..111122222211111...',  // mask lower
+  '..111112222211111...',  // muzzle (lighter)
+  '..111112322211111...',  // nose (3 at col 8)
+  '..11111111111111....',  // chin/neck
+  '...1111111111111....',  // body
+  '...1111111111111....',  // body
+  '....111111111111....',  // body
+  '....111111111111....',  // lower body
+  '....11111111111.....',  // body bottom
+  '....11111.11111.....',  // legs
+  '.....1111..1111.....',  // paws
+  '.....111....111.....',  // feet
 ]);
 
 export const BREEDS: Record<BreedId, BreedConfig> = {
@@ -162,13 +164,13 @@ export const BREEDS: Record<BreedId, BreedConfig> = {
   husky: {
     id: 'husky',
     name: 'Husky',
-    colors: { primary: '#DDDDDD', secondary: '#F5F5F5', dark: '#111111' },
+    colors: { primary: '#888888', secondary: '#EEEEEE', dark: '#111111' },
     grid: HUSKY_GRID,
   },
   poodle: {
     id: 'poodle',
     name: 'Toy Poodle',
-    colors: { primary: '#C5702A', secondary: '#F0D4A8', dark: '#111111' },
+    colors: { primary: '#A07044', secondary: '#D4AA78', dark: '#3D1F00' },
     grid: POODLE_GRID,
   },
 };

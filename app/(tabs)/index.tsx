@@ -41,8 +41,8 @@ export default function HomeScreen() {
   if (!dog) return null;
 
   const healthPct = Math.round(fillPercent * 100);
-  const { worming, vet } = periodicScores;
-  const { walking, teeth } = weeklyScores;
+  const { worming, vet, grooming } = periodicScores;
+  const { walking, teeth, training } = weeklyScores;
 
   function periodicStatus(daysSince: number | null, freq: number): string {
     if (daysSince === null) return 'NEVER';
@@ -51,14 +51,16 @@ export default function HomeScreen() {
     return rem < 30 ? `${rem}D` : `${Math.round(rem / 30)}MO`;
   }
 
-  const trackedWeekly   = dog.trackedActivities.filter(t => t === 'walking' || t === 'teeth') as ('walking' | 'teeth')[];
-  const trackedPeriodic = dog.trackedActivities.filter(t => t === 'worming' || t === 'vet') as ('worming' | 'vet')[];
+  const trackedWeekly   = dog.trackedActivities.filter(t => t === 'walking' || t === 'teeth' || t === 'training') as ('walking' | 'teeth' | 'training')[];
+  const trackedPeriodic = dog.trackedActivities.filter(t => t === 'worming' || t === 'vet' || t === 'grooming') as ('worming' | 'vet' | 'grooming')[];
 
   const QUICK_LOG_ITEMS = [
-    { type: 'walking' as const, emoji: '🐾', label: 'Walk' },
-    { type: 'teeth'   as const, emoji: '🦷', label: 'Teeth' },
-    { type: 'worming' as const, emoji: '💊', label: 'Worming' },
-    { type: 'vet'     as const, emoji: '🏥', label: 'Vet' },
+    { type: 'walking'  as const, emoji: '🐾', label: 'Walk' },
+    { type: 'teeth'    as const, emoji: '🦷', label: 'Teeth' },
+    { type: 'training' as const, emoji: '🎓', label: 'Train' },
+    { type: 'worming'  as const, emoji: '💊', label: 'Worming' },
+    { type: 'vet'      as const, emoji: '🏥', label: 'Vet' },
+    { type: 'grooming' as const, emoji: '✂️', label: 'Groom' },
   ].filter(item => dog.trackedActivities.includes(item.type));
 
   return (
@@ -92,9 +94,9 @@ export default function HomeScreen() {
         {trackedWeekly.length > 0 && (
           <View style={styles.statsRow}>
             {trackedWeekly.map((type, i) => {
-              const score = type === 'walking' ? walking : teeth;
-              const emoji = type === 'walking' ? '🐾' : '🦷';
-              const label = type === 'walking' ? 'WALKS\nTHIS WK' : 'TEETH\nTHIS WK';
+              const score = type === 'walking' ? walking : type === 'teeth' ? teeth : training;
+              const emoji = type === 'walking' ? '🐾' : type === 'teeth' ? '🦷' : '🎓';
+              const label = type === 'walking' ? 'WALKS\nTHIS WK' : type === 'teeth' ? 'TEETH\nTHIS WK' : 'TRAIN\nTHIS WK';
               const done = score.done >= score.target;
               return (
                 <OffsetCard
@@ -122,8 +124,10 @@ export default function HomeScreen() {
           <OffsetCard style={styles.periodicCard}>
             <Text style={styles.periodicTitle}>CARE.LOG ✦</Text>
             {trackedPeriodic.map((type, i) => {
-              const score = type === 'worming' ? worming : vet;
+              const score = type === 'worming' ? worming : type === 'vet' ? vet : grooming;
               const ok = score.daysSinceLast !== null && score.daysSinceLast < score.frequencyDays;
+              const emoji = type === 'worming' ? '💊' : type === 'vet' ? '🏥' : '✂️';
+              const lbl   = type === 'worming' ? 'WORMING' : type === 'vet' ? 'VET VISIT' : 'GROOMING';
               return (
                 <View
                   key={type}
@@ -132,8 +136,8 @@ export default function HomeScreen() {
                     i > 0 && { borderTopWidth: 1.5, borderTopColor: '#F0F0F0', paddingTop: 10 },
                   ]}
                 >
-                  <Text style={styles.periodicEmoji}>{type === 'worming' ? '💊' : '🏥'}</Text>
-                  <Text style={styles.periodicLabel}>{type === 'worming' ? 'WORMING' : 'VET VISIT'}</Text>
+                  <Text style={styles.periodicEmoji}>{emoji}</Text>
+                  <Text style={styles.periodicLabel}>{lbl}</Text>
                   <Text style={[styles.periodicStatus, { color: ok ? Colors.positive : Colors.negative }]}>
                     {periodicStatus(score.daysSinceLast, score.frequencyDays)}
                   </Text>
