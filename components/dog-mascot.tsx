@@ -27,29 +27,30 @@ export function DogMascot({ breed, fillPercent, cellSize = 14 }: Props) {
 
   useEffect(() => {
     fillY.value = withSpring(H * (1 - fillPercent), { damping: 18, stiffness: 80 });
-    // fillY is a shared value ref — stable across renders, intentionally omitted
+    // fillY is a stable shared-value ref — intentionally excluded from deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fillPercent, H]);
 
   const animatedFillProps = useAnimatedProps(() => ({
     y: fillY.value,
-    height: H - fillY.value,
+    height: Math.max(0, H - fillY.value),
   }));
 
-  const clipId = `dog-clip-${breed}`;
+  const clipId = `dog-primary-${breed}`;
 
   return (
     <View>
       <Svg width={W} height={H}>
         <Defs>
+          {/* Clip to primary (1) pixels only for the fill animation */}
           <ClipPath id={clipId}>
             <G>
               {config.grid.map((row, r) =>
                 row.map((val, c) => {
-                  if (val === 0) return null;
+                  if (val !== 1) return null;
                   return (
                     <Rect
-                      key={`clip-${r}-${c}`}
+                      key={`pc-${r}-${c}`}
                       x={c * cellSize}
                       y={r * cellSize}
                       width={cellSize}
@@ -62,7 +63,7 @@ export function DogMascot({ breed, fillPercent, cellSize = 14 }: Props) {
           </ClipPath>
         </Defs>
 
-        {/* Gray base silhouette */}
+        {/* 1. Gray base silhouette (all non-transparent pixels) */}
         {config.grid.map((row, r) =>
           row.map((val, c) => {
             if (val === 0) return null;
@@ -79,7 +80,7 @@ export function DogMascot({ breed, fillPercent, cellSize = 14 }: Props) {
           })
         )}
 
-        {/* Animated color fill rising from bottom, clipped to dog shape */}
+        {/* 2. Animated primary fill, clipped to primary (1) pixels */}
         <G clipPath={`url(#${clipId})`}>
           <AnimatedRect
             x={0}
@@ -89,13 +90,30 @@ export function DogMascot({ breed, fillPercent, cellSize = 14 }: Props) {
           />
         </G>
 
-        {/* Dark details (eyes, nose) always on top */}
+        {/* 3. Secondary color always visible (muzzle, inner ears, markings) */}
+        {config.grid.map((row, r) =>
+          row.map((val, c) => {
+            if (val !== 2) return null;
+            return (
+              <Rect
+                key={`sec-${r}-${c}`}
+                x={c * cellSize}
+                y={r * cellSize}
+                width={cellSize}
+                height={cellSize}
+                fill={config.colors.secondary}
+              />
+            );
+          })
+        )}
+
+        {/* 4. Dark details always on top (eyes, nose) */}
         {config.grid.map((row, r) =>
           row.map((val, c) => {
             if (val !== 3) return null;
             return (
               <Rect
-                key={`detail-${r}-${c}`}
+                key={`dark-${r}-${c}`}
                 x={c * cellSize}
                 y={r * cellSize}
                 width={cellSize}

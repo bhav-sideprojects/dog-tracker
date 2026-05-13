@@ -10,8 +10,13 @@ export type CareLog = {
 export type DogProfile = {
   name: string;
   breed: BreedId;
+  trackedActivities: CareType[];
   walkingPerWeek: number;
   teethPerWeek: number;
+  wormingFrequencyDays: number; // default 90
+  vetFrequencyDays: number;     // default 365
+  wormingLastDate: string | null;
+  vetLastDate: string | null;
 };
 
 export type AppData = {

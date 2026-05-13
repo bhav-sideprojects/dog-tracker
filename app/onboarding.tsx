@@ -17,9 +17,41 @@ import { BREED_ORDER, BREEDS } from '@/constants/breeds';
 import { DogMascot } from '@/components/dog-mascot';
 import { Sparkle } from '@/components/sparkle';
 import { useAppData } from '@/hooks/use-app-data';
-import { BreedId } from '@/store/types';
+import { BreedId, CareType } from '@/store/types';
 
-type Step = 'name' | 'breed' | 'frequency';
+type Step = 'name' | 'breed' | 'activities' | 'setup';
+const STEPS: Step[] = ['name', 'breed', 'activities', 'setup'];
+
+const ALL_ACTIVITIES: { type: CareType; emoji: string; label: string }[] = [
+  { type: 'walking', emoji: '🐾', label: 'Walkies' },
+  { type: 'teeth',   emoji: '🦷', label: 'Teeth Brushing' },
+  { type: 'worming', emoji: '💊', label: 'Worming Tablet' },
+  { type: 'vet',     emoji: '🏥', label: 'Vet Visits' },
+];
+
+// Rough "last done" options — relative to now
+function daysAgoISO(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString();
+}
+
+const WORMING_LAST_OPTIONS = [
+  { label: 'Today',         value: daysAgoISO(0)  },
+  { label: '2 weeks ago',   value: daysAgoISO(14) },
+  { label: '1 month ago',   value: daysAgoISO(30) },
+  { label: '2 months ago',  value: daysAgoISO(60) },
+  { label: "Don't know",    value: null            },
+];
+
+const VET_LAST_OPTIONS = [
+  { label: 'Today',         value: daysAgoISO(0)   },
+  { label: '3 months ago',  value: daysAgoISO(90)  },
+  { label: '6 months ago',  value: daysAgoISO(180) },
+  { label: '9 months ago',  value: daysAgoISO(270) },
+  { label: '1+ years ago',  value: daysAgoISO(400) },
+  { label: "Don't know",    value: null             },
+];
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
@@ -28,25 +60,49 @@ export default function OnboardingScreen() {
   const [step, setStep] = useState<Step>('name');
   const [name, setName] = useState('');
   const [breed, setBreed] = useState<BreedId>('corgi');
+  const [tracked, setTracked] = useState<CareType[]>(['walking', 'teeth', 'worming', 'vet']);
   const [walkingPerWeek, setWalkingPerWeek] = useState(4);
   const [teethPerWeek, setTeethPerWeek] = useState(7);
+  const [wormingFreqMonths, setWormingFreqMonths] = useState(3);
+  const [vetFreqMonths, setVetFreqMonths] = useState(12);
+  const [wormingLastDate, setWormingLastDate] = useState<string | null>(null);
+  const [vetLastDate, setVetLastDate] = useState<string | null>(null);
+
+  const toggleActivity = (type: CareType) => {
+    Haptics.selectionAsync();
+    setTracked(prev =>
+      prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
+    );
+  };
 
   const advance = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (step === 'name') setStep('breed');
-    else if (step === 'breed') setStep('frequency');
+    const idx = STEPS.indexOf(step);
+    if (idx < STEPS.length - 1) setStep(STEPS[idx + 1]);
     else finish();
   };
 
   const finish = async () => {
-    await setDog({ name: name.trim(), breed, walkingPerWeek, teethPerWeek });
+    await setDog({
+      name: name.trim(),
+      breed,
+      trackedActivities: tracked,
+      walkingPerWeek,
+      teethPerWeek,
+      wormingFrequencyDays: wormingFreqMonths * 30,
+      vetFrequencyDays: vetFreqMonths * 30,
+      wormingLastDate,
+      vetLastDate,
+    });
     router.replace('/');
   };
 
   const canAdvance =
-    step === 'name' ? name.trim().length > 0
-    : step === 'breed' ? true
-    : true;
+    step === 'name'       ? name.trim().length > 0 :
+    step === 'activities' ? tracked.length > 0 :
+    true;
+
+  const isLastStep = step === 'setup';
 
   return (
     <KeyboardAvoidingView
@@ -60,13 +116,13 @@ export default function OnboardingScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header */}
         <View style={styles.headerRow}>
           <Sparkle size={12} />
           <Text style={styles.appName}>dog-tracker.exe</Text>
           <Sparkle size={12} />
         </View>
 
+        {/* ── STEP: NAME ─────────────────────────────────────────────── */}
         {step === 'name' && (
           <>
             <View style={styles.mascotWrap}>
@@ -86,6 +142,7 @@ export default function OnboardingScreen() {
           </>
         )}
 
+        {/* ── STEP: BREED ────────────────────────────────────────────── */}
         {step === 'breed' && (
           <>
             <Text style={styles.heading}>PICK A BREED</Text>
@@ -94,14 +151,8 @@ export default function OnboardingScreen() {
               {BREED_ORDER.map(id => (
                 <Pressable
                   key={id}
-                  onPress={() => {
-                    Haptics.selectionAsync();
-                    setBreed(id);
-                  }}
-                  style={[
-                    styles.breedCard,
-                    breed === id && styles.breedCardSelected,
-                  ]}
+                  onPress={() => { Haptics.selectionAsync(); setBreed(id); }}
+                  style={[styles.breedCard, breed === id && styles.breedCardSelected]}
                 >
                   <DogMascot breed={id} fillPercent={breed === id ? 1 : 0.3} cellSize={8} />
                   <Text style={[styles.breedName, breed === id && styles.breedNameSelected]}>
@@ -113,30 +164,93 @@ export default function OnboardingScreen() {
           </>
         )}
 
-        {step === 'frequency' && (
+        {/* ── STEP: ACTIVITIES ───────────────────────────────────────── */}
+        {step === 'activities' && (
           <>
             <View style={styles.mascotWrap}>
               <DogMascot breed={breed} fillPercent={0.5} cellSize={12} />
             </View>
-            <Text style={styles.heading}>SET GOALS</Text>
-            <Text style={styles.sub}>HOW OFTEN PER WEEK?</Text>
+            <Text style={styles.heading}>WHAT DO YOU{'\n'}WANT TO TRACK?</Text>
+            <Text style={styles.sub}>SELECT ALL THAT APPLY</Text>
+            <View style={styles.activitiesGrid}>
+              {ALL_ACTIVITIES.map(({ type, emoji, label }) => {
+                const selected = tracked.includes(type);
+                return (
+                  <Pressable
+                    key={type}
+                    onPress={() => toggleActivity(type)}
+                    style={[styles.activityCard, selected && styles.activityCardSelected]}
+                  >
+                    <Text style={styles.activityEmoji}>{emoji}</Text>
+                    <Text style={[styles.activityLabel, selected && styles.activityLabelSelected]}>
+                      {label.toUpperCase()}
+                    </Text>
+                    <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
+                      {selected && <Text style={styles.checkmark}>✓</Text>}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </>
+        )}
 
-            <FrequencyStepper
-              emoji="🐾"
-              label="WALKIES"
-              value={walkingPerWeek}
-              min={1}
-              max={7}
-              onChange={setWalkingPerWeek}
-            />
-            <FrequencyStepper
-              emoji="🦷"
-              label="TEETH BRUSHING"
-              value={teethPerWeek}
-              min={1}
-              max={7}
-              onChange={setTeethPerWeek}
-            />
+        {/* ── STEP: SETUP ────────────────────────────────────────────── */}
+        {step === 'setup' && (
+          <>
+            <Text style={styles.heading}>SET YOUR{'\n'}GOALS</Text>
+
+            {tracked.includes('walking') && (
+              <>
+                <Text style={styles.sectionLabel}>🐾 WALKIES — HOW OFTEN PER WEEK?</Text>
+                <FrequencyStepper
+                  value={walkingPerWeek} min={1} max={7}
+                  unit="×/week" onChange={setWalkingPerWeek}
+                />
+              </>
+            )}
+
+            {tracked.includes('teeth') && (
+              <>
+                <Text style={styles.sectionLabel}>🦷 TEETH — HOW OFTEN PER WEEK?</Text>
+                <FrequencyStepper
+                  value={teethPerWeek} min={1} max={7}
+                  unit="×/week" onChange={setTeethPerWeek}
+                />
+              </>
+            )}
+
+            {tracked.includes('worming') && (
+              <>
+                <Text style={styles.sectionLabel}>💊 WORMING — HOW OFTEN?</Text>
+                <FrequencyStepper
+                  value={wormingFreqMonths} min={1} max={6}
+                  unit="months" onChange={setWormingFreqMonths}
+                />
+                <Text style={styles.sectionLabel}>LAST DOSE?</Text>
+                <QuickPicker
+                  options={WORMING_LAST_OPTIONS}
+                  selected={wormingLastDate}
+                  onSelect={setWormingLastDate}
+                />
+              </>
+            )}
+
+            {tracked.includes('vet') && (
+              <>
+                <Text style={styles.sectionLabel}>🏥 VET — HOW OFTEN?</Text>
+                <FrequencyStepper
+                  value={vetFreqMonths} min={6} max={24}
+                  unit="months" onChange={setVetFreqMonths}
+                />
+                <Text style={styles.sectionLabel}>LAST VISIT?</Text>
+                <QuickPicker
+                  options={VET_LAST_OPTIONS}
+                  selected={vetLastDate}
+                  onSelect={setVetLastDate}
+                />
+              </>
+            )}
           </>
         )}
 
@@ -150,12 +264,12 @@ export default function OnboardingScreen() {
           ]}
         >
           <Text style={styles.ctaText}>
-            {step === 'frequency' ? 'GET STARTED →→' : 'NEXT →→'}
+            {isLastStep ? 'GET STARTED →→' : 'NEXT →→'}
           </Text>
         </Pressable>
 
         <View style={styles.dotsRow}>
-          {(['name', 'breed', 'frequency'] as Step[]).map(s => (
+          {STEPS.map(s => (
             <View key={s} style={[styles.dot, step === s && styles.dotActive]} />
           ))}
         </View>
@@ -164,55 +278,58 @@ export default function OnboardingScreen() {
   );
 }
 
+// ── Sub-components ────────────────────────────────────────────────────────────
+
 function FrequencyStepper({
-  emoji, label, value, min, max, onChange,
-}: {
-  emoji: string; label: string; value: number; min: number; max: number;
-  onChange: (v: number) => void;
-}) {
+  value, min, max, unit, onChange,
+}: { value: number; min: number; max: number; unit: string; onChange: (v: number) => void }) {
   return (
     <View style={styles.stepperRow}>
-      <Text style={styles.stepperEmoji}>{emoji}</Text>
-      <Text style={styles.stepperLabel}>{label}</Text>
-      <View style={styles.stepperControls}>
-        <Pressable
-          onPress={() => { Haptics.selectionAsync(); onChange(Math.max(min, value - 1)); }}
-          style={styles.stepperBtn}
-        >
-          <Text style={styles.stepperBtnText}>−</Text>
-        </Pressable>
-        <Text style={styles.stepperValue}>{value}x</Text>
-        <Pressable
-          onPress={() => { Haptics.selectionAsync(); onChange(Math.min(max, value + 1)); }}
-          style={styles.stepperBtn}
-        >
-          <Text style={styles.stepperBtnText}>+</Text>
-        </Pressable>
-      </View>
+      <Pressable
+        onPress={() => { Haptics.selectionAsync(); onChange(Math.max(min, value - 1)); }}
+        style={styles.stepperBtn}
+      >
+        <Text style={styles.stepperBtnText}>−</Text>
+      </Pressable>
+      <Text style={styles.stepperValue}>{value} {unit}</Text>
+      <Pressable
+        onPress={() => { Haptics.selectionAsync(); onChange(Math.min(max, value + 1)); }}
+        style={styles.stepperBtn}
+      >
+        <Text style={styles.stepperBtnText}>+</Text>
+      </Pressable>
     </View>
   );
 }
 
+function QuickPicker({
+  options, selected, onSelect,
+}: { options: { label: string; value: string | null }[]; selected: string | null; onSelect: (v: string | null) => void }) {
+  return (
+    <View style={styles.pickerRow}>
+      {options.map(opt => (
+        <Pressable
+          key={opt.label}
+          onPress={() => { Haptics.selectionAsync(); onSelect(opt.value); }}
+          style={[styles.pickerPill, selected === opt.value && styles.pickerPillSelected]}
+        >
+          <Text style={[styles.pickerText, selected === opt.value && styles.pickerTextSelected]}>
+            {opt.label}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: Colors.background },
-  container: {
-    paddingHorizontal: 24,
-    alignItems: 'center',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 32,
-  },
-  appName: {
-    fontFamily: PIXEL_FONT,
-    fontSize: 10,
-    color: Colors.accent,
-  },
-  mascotWrap: {
-    marginBottom: 24,
-  },
+  container: { paddingHorizontal: 24, alignItems: 'center' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 32 },
+  appName: { fontFamily: PIXEL_FONT, fontSize: 10, color: Colors.accent },
+  mascotWrap: { marginBottom: 24 },
   heading: {
     fontFamily: PIXEL_FONT,
     fontSize: 18,
@@ -260,93 +377,102 @@ const styles = StyleSheet.create({
     gap: 6,
     width: '44%',
   },
-  breedCardSelected: {
-    borderColor: Colors.border,
-    borderWidth: 2.5,
-  },
-  breedName: {
-    fontFamily: PIXEL_FONT,
-    fontSize: 6,
-    color: Colors.textMuted,
-    textAlign: 'center',
-  },
-  breedNameSelected: {
-    color: Colors.accent,
-  },
-  stepperRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  breedCardSelected: { borderColor: Colors.border, borderWidth: 2.5 },
+  breedName: { fontFamily: PIXEL_FONT, fontSize: 6, color: Colors.textMuted, textAlign: 'center' },
+  breedNameSelected: { color: Colors.accent },
+  activitiesGrid: { width: '100%', gap: 10, marginBottom: 24 },
+  activityCard: {
     backgroundColor: Colors.card,
     borderWidth: 2,
-    borderColor: Colors.border,
+    borderColor: Colors.dogEmpty,
     borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 12,
-    width: '100%',
-    gap: 8,
-  },
-  stepperEmoji: { fontSize: 18 },
-  stepperLabel: {
-    fontFamily: PIXEL_FONT,
-    fontSize: 7,
-    color: Colors.text,
-    flex: 1,
-  },
-  stepperControls: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
+  activityCardSelected: { borderColor: Colors.border },
+  activityEmoji: { fontSize: 22 },
+  activityLabel: {
+    fontFamily: PIXEL_FONT,
+    fontSize: 8,
+    color: Colors.textMuted,
+    flex: 1,
+  },
+  activityLabelSelected: { color: Colors.text },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: Colors.dogEmpty,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxSelected: { backgroundColor: Colors.accent, borderColor: Colors.accent },
+  checkmark: { color: '#FFF', fontSize: 12, fontWeight: '700' },
+  sectionLabel: {
+    fontFamily: PIXEL_FONT,
+    fontSize: 7,
+    color: Colors.textMuted,
+    alignSelf: 'flex-start',
+    marginTop: 16,
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  stepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    backgroundColor: Colors.card,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    width: '100%',
+    justifyContent: 'center',
+  },
   stepperBtn: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     backgroundColor: Colors.accent,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepperBtnText: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '700',
-    lineHeight: 24,
-  },
+  stepperBtnText: { color: '#FFF', fontSize: 22, fontWeight: '700', lineHeight: 26 },
   stepperValue: {
     fontFamily: PIXEL_FONT,
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.text,
-    minWidth: 30,
+    minWidth: 80,
     textAlign: 'center',
   },
+  pickerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, width: '100%', marginBottom: 8 },
+  pickerPill: {
+    backgroundColor: Colors.card,
+    borderWidth: 1.5,
+    borderColor: Colors.dogEmpty,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  pickerPillSelected: { borderColor: Colors.accent, backgroundColor: Colors.accent },
+  pickerText: { fontFamily: PIXEL_FONT, fontSize: 7, color: Colors.textMuted },
+  pickerTextSelected: { color: '#FFF' },
   cta: {
     backgroundColor: Colors.text,
     borderRadius: 50,
     paddingVertical: 16,
     paddingHorizontal: 40,
-    marginTop: 8,
+    marginTop: 24,
     marginBottom: 20,
   },
   ctaDisabled: { opacity: 0.4 },
-  ctaText: {
-    fontFamily: PIXEL_FONT,
-    fontSize: 10,
-    color: '#FFFFFF',
-    letterSpacing: 1,
-  },
-  dotsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.dogEmpty,
-  },
-  dotActive: {
-    backgroundColor: Colors.accent,
-    width: 20,
-    borderRadius: 4,
-  },
+  ctaText: { fontFamily: PIXEL_FONT, fontSize: 10, color: '#FFFFFF', letterSpacing: 1 },
+  dotsRow: { flexDirection: 'row', gap: 8 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.dogEmpty },
+  dotActive: { backgroundColor: Colors.accent, width: 20, borderRadius: 4 },
 });
