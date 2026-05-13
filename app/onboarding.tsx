@@ -91,6 +91,12 @@ export default function OnboardingScreen() {
     );
   };
 
+  const goBack = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const idx = STEPS.indexOf(step);
+    if (idx > 0) setStep(STEPS[idx - 1]);
+  };
+
   const advance = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const idx = STEPS.indexOf(step);
@@ -130,7 +136,13 @@ export default function OnboardingScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.headerRow}>
-          <Sparkle size={12} />
+          {step !== 'name' ? (
+            <Pressable onPress={goBack} style={styles.backBtn}>
+              <Text style={styles.backText}>← BACK</Text>
+            </Pressable>
+          ) : (
+            <View style={styles.backBtn} />
+          )}
           <Text style={styles.appName}>dog-tracker.exe</Text>
           <Sparkle size={12} />
         </View>
@@ -345,8 +357,10 @@ function QuickPicker({
 const styles = StyleSheet.create({
   flex:      { flex: 1, backgroundColor: Colors.background },
   container: { paddingHorizontal: 24, alignItems: 'center' },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 32 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: 32 },
   appName:   { fontFamily: PIXEL_FONT, fontSize: 10, color: Colors.accent },
+  backBtn:   { minWidth: 60 },
+  backText:  { fontFamily: PIXEL_FONT, fontSize: 7, color: Colors.textMuted, letterSpacing: 0.5 },
   mascotWrap: { marginBottom: 24 },
   heading: {
     fontFamily: PIXEL_FONT, fontSize: 18, color: Colors.text,
