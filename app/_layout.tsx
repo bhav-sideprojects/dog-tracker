@@ -37,7 +37,7 @@ function RootNavigation() {
 
   useEffect(() => {
     if (!isLoading && fontsLoaded) {
-      SplashScreen.hideAsync();
+      SplashScreen.hideAsync().catch(() => {});
       if (!dog) {
         router.replace('/onboarding');
       }
